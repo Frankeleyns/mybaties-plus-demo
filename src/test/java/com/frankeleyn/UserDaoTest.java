@@ -1,6 +1,8 @@
 package com.frankeleyn;
 
+import com.frankeleyn.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 /**
@@ -9,9 +11,11 @@ import org.springframework.boot.test.context.SpringBootTest;
  */
 @SpringBootTest
 public class UserDaoTest {
+    @Autowired
+    private UserMapper userMapper;
 
     @Test
-    public void test1() {
-        System.out.println("Hello");
+    public void testFindAll() {
+        userMapper.selectList(null).forEach(System.out::println);
     }
 }
