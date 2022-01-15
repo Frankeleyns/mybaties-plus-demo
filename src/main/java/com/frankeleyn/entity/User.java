@@ -15,12 +15,16 @@ import lombok.NoArgsConstructor;
 @Builder
 public class User {
 
+    // 主键
     private Long id;
 
+    // 名字
     private String name;
 
+    // 年龄
     private Integer age;
 
+    // 邮箱
     private String email;
 
 }

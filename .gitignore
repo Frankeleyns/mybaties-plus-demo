@@ -23,7 +23,7 @@
 hs_err_pid*
 
 # Idea file
-.idea
+.idea/
 *.iml
 **/**/*.iml
 target/
