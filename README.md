@@ -586,3 +586,26 @@ MyBatis Plus 提供了自动填充功能，同样可以完成这些字段的赋�
 
 
 ### 四、TableLogic
+
+**逻辑删除：**就是将数据中代表删除的字段修改为**删除状态**，但是在数据库中仍然可以看到该数据。
+
+**@TableLogic** 的作用就是在查询或更新的时候自动为 sql 语句添加一段 你标注的属性 = 0 的后缀
+
+
+
+#### 1. 创建逻辑删除列
+
+![3-4-1](./img/3-4-1.png)
+
+
+
+#### 2. 实体类添加注解
+
+```java
+@TableLogic
+@TableField(value = "is_deleted")
+private Integer deleted;
+```
+
+
+
