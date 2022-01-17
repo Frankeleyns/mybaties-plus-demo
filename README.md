@@ -37,11 +37,11 @@ INSERT INTO user (id, name, age, email) VALUES
 
 ### 2. 创建 Spring Boot 工程
 
-![02](./img/02.png)
+![02](./img/1-2-1.png)
 
 
 
-![03](./img/03.png)
+![03](./img/1-2-2.png)
 
 
 
@@ -107,7 +107,7 @@ INSERT INTO user (id, name, age, email) VALUES
 
 ### 4. 修改配置文件
 
-![4-1](./img/4-1.png)
+![4-1](./img/1-4-1.png)
 
 ```properties
 # 端口号
@@ -240,7 +240,7 @@ public class UserDaoTest {
 
 打印结果：
 
-![8-1](./img/8-1.png)
+![8-1](./img/1-8-1.png)
 
 
 
@@ -250,7 +250,7 @@ public class UserDaoTest {
 
 ### 一、通用 Mapper
 
-​		在 mybatis-plus 框架中不需要实现 xml 映射配置文件和对应的 sql，它默认有单表的增删改查，都已经在 **BaseMapper\<T>** 中实现了，我们只需要声明一个 Mapper 接口，并继承它就能使用，就像上文入门案例的 [**UserMapper**](##6. 创建 Mapper 接口) 一样。
+在 **Mybatis Plus** 框架中不需要实现 xml 映射配置文件和对应的 sql，它默认有单表的增删改查，都已经在 **BaseMapper\<T>** 中实现了，我们只需要声明一个 Mapper 接口，并继承它就能使用，就像上文入门案例的 [**UserMapper**](##6. 创建 Mapper 接口) 一样。
 
 
 
@@ -327,3 +327,262 @@ public void testDelete() {
 
 
 
+### 二、通用 Service
+
+**mybatis-plus** 提供一个接口 **IService** 和其实现类 **ServiceImpl** ，封装了常见单表的业务层逻辑，也是 CRUD。
+
+
+
+#### 1. 创建 Service 接口
+
+```java
+package com.frankeleyn.service;
+
+import com.baomidou.mybatisplus.extension.service.IService;
+import com.frankeleyn.entity.User;
+
+/**
+ * @author Frankeleyn
+ * @date 2022/1/17 10:15
+ */
+public interface UserService extends IService<User> {
+    
+}
+```
+
+
+
+#### 2. 创建 Service 实现类
+
+```java
+package com.frankeleyn.service.impl;
+
+import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.frankeleyn.entity.User;
+import com.frankeleyn.mapper.UserMapper;
+import com.frankeleyn.service.UserService;
+
+/**
+ * @author Frankeleyn
+ * @date 2022/1/17 10:16
+ */
+@Service
+public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
+    
+}
+```
+
+
+
+####  3. 创建测试类
+
+```java
+package com.frankeleyn;
+
+import com.frankeleyn.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+
+/**
+ * @author Frankeleyn
+ * @date 2022/1/17 10:19
+ */
+@SpringBootTest
+public class UserServiceTest {
+
+    @Autowired
+    private UserService userService;
+    
+}
+```
+
+
+
+#### 4. 获取总记录数
+
+```java
+@Test
+public void testAdd() {
+    // 获取数据库所有记录数
+    int count = userService.count();
+    System.out.println(count);
+}
+```
+
+
+
+#### 5. 批量插入数据
+
+```java
+@Test
+public void testBatchAdd() {
+    // 测试批量插入数据
+    ArrayList<User> users = new ArrayList<>();
+    for (int i = 0; i < 5; i++) {
+        User user = new User();
+        user.setName("Obama" + i);
+        user.setAge(10 + i);
+        users.add(user);
+    }
+    userService.saveBatch(users);
+}
+```
+
+
+
+### 三、自定义 Mapper
+
+如果通用 Mapper 不符号我们的需求，我们也可以像以前使用 Mybatis 一样，自定义接口方法并配置 xml 文件，写 sql 语句。
+
+
+
+#### 1. 接口方法
+
+在 UserMapper 中定义一个方法 **findUsersByName**
+
+```java
+public interface UserMapper extends BaseMapper<User> {
+    List<User> findUsersByName(String name);
+}
+```
+
+
+
+#### 2. 创建配置文件
+
+在 resource 目录下新建 **mapper** 文件夹，创建 **UserMapper.xml**
+
+![2-3-2](./img/2-3-2.png)
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.frankeleyn.mapper.UserMapper">
+    <select id="findUsersByName" resultType="com.frankeleyn.entity.User">
+        SELECT * FROM user
+        WHERE name like "%"#{name}"%"
+    </select>
+</mapper>
+```
+
+
+
+#### 3. 测试自定义条件查询
+
+```java
+@Test
+public void testFindUserByName() {
+    // 查询用户名字中带有 Obama 
+    List<User> userList = userMapper.findUsersByName("Obama");
+    userList.forEach(System.out::println);
+}
+```
+
+
+
+## 常用注解
+
+
+
+### 一、 TableName
+
+表名，将实体类绑定到对应的数据库
+
+```java
+@TableName("t_user")
+public class User{
+    
+}
+```
+
+
+
+### 二、TableId
+
+#### type 属性
+
+type 属性用来指定主键策略
+
+- **AUTO**，主键自增，Mysql 主键自增的最小值总是要大于现有数据的最大值
+
+  ```java
+  @TableId(type = IdType.AUTO)
+  private Long id;
+  ```
+
+- **ASSIGN_ID**，使用**雪花算法**生成主键，例: 1482xxxxxxxxxxx
+
+  ```java
+  @TableId(type = IdType.ASSIGN_ID)
+  private Long id;
+  ```
+
+**id 策略的选择**
+
+一般小数据量，使用自增策略，当数据量超过千万级别后，涉及分库分表，需要使用雪花算法。
+
+
+
+### 三、TableField
+
+#### 1. value 属性
+
+将数据库字段和实体类对应的属性绑定
+
+将字段 create_time 和 update_time 绑定到实体类的 createTime 和 updateTime 属性上
+
+![3-3-1](./img/3-3-1.png)
+
+```java
+@TableField("create_time")
+private LocalDateTime createTime;
+
+@TableField("update_time")
+private LocalDateTime updateTime;
+```
+
+
+
+#### 2. 自动填充
+
+对于字段，比如 create_time 和 update_time 一般情况下不用刻意处理，可以将这两个字段的默认值设为 **CURRENT_TIMESTAMP** 以获取当前时间。
+
+MyBatis Plus 提供了自动填充功能，同样可以完成这些字段的赋值工作。
+
+- 添加 **fill** 属性，指定在哪个操作执行时自动填充
+
+  ```java
+  @TableField(value = "create_time", fill = FieldFill.INSERT)
+  private LocalDateTime createTime;
+  
+  @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
+  private LocalDateTime updateTime;
+  ```
+
+- 配置元数据对象处理器
+
+  ```java
+  @Component
+  public class MyMetaObjectHandler implements MetaObjectHandler {
+      @Override
+      public void insertFill(MetaObject metaObject) {
+          System.out.println("insertFill...");
+          this.strictInsertFill(metaObject, "createTime", LocalDateTime.class, LocalDateTime.now());
+          this.strictInsertFill(metaObject, "updateTime", LocalDateTime.class, LocalDateTime.now());
+      }
+  
+      @Override
+      public void updateFill(MetaObject metaObject) {
+          System.out.println("updateFill...");
+          this.strictUpdateFill(metaObject, "updateTime", LocalDateTime.class, LocalDateTime.now());
+      }
+  
+  }
+  ```
+
+之后测试插入和修改。
+
+
+
+### 四、TableLogic

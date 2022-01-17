@@ -22,6 +22,13 @@ public class UserDaoTest {
     private UserMapper userMapper;
 
     @Test
+    public void testFindUserByName() {
+        // 查询用户名字中带有 Obama
+        List<User> userList = userMapper.findUsersByName("Obama");
+        userList.forEach(System.out::println);
+    }
+
+    @Test
     public void testDelete() {
         // 删除 id 为5的用户
         int row = userMapper.deleteById(5);
@@ -31,9 +38,9 @@ public class UserDaoTest {
 
     @Test
     public void testUpdate() {
-        User user = userMapper.selectById(1L);
-        user.setAge(28);
-
+        User user = new User();
+        user.setId(1482963171146280962L);
+        user.setAge(33);
         // 更新 id 为 1的用户年龄为 28
         int row = userMapper.updateById(user);
         System.out.println("影响的行数： " + row);
@@ -62,9 +69,9 @@ public class UserDaoTest {
     public void testInsert() {
         // 构造器模式创建 User 对象
         User user = User.builder()
-                .name("Vincent")
+                .name("Vincent1")
                 .age(33)
-                .email("Vincent@qq.com").build();
+                .email("Vincent1@qq.com").build();
 
         int row = userMapper.insert(user);
         System.out.println("影响的行数：" + row);
