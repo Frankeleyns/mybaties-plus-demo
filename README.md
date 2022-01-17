@@ -244,3 +244,86 @@ public class UserDaoTest {
 
 
 
+## 基本用法
+
+
+
+### 一、通用 Mapper
+
+​		在 mybatis-plus 框架中不需要实现 xml 映射配置文件和对应的 sql，它默认有单表的增删改查，都已经在 **BaseMapper\<T>** 中实现了，我们只需要声明一个 Mapper 接口，并继承它就能使用，就像上文入门案例的 [**UserMapper**](##6. 创建 Mapper 接口) 一样。
+
+
+
+#### 1. Insert
+
+```java
+@Test
+public void testInsert() {
+    // 构造器模式创建 User 对象
+    User user = User.builder()
+        .name("Vincent")
+        .age(33)
+        .email("Vincent@qq.com").build();
+
+    int row = userMapper.insert(user);
+    System.out.println("影响的行数：" + row);
+    System.out.println("获取自动生成的 id: " + user.getId());
+}
+```
+
+
+
+#### 2. Selete
+
+```java
+@Test
+public void testSelect() {
+    // 根据 id 查询用户
+    User user1 = userMapper.selectById(1L);
+    System.out.println(user1);
+
+    // 根据 id 列表查询多个用户
+    List<User> userList = userMapper.selectBatchIds(Arrays.asList(2L, 3L, 4L));
+    userList.forEach(System.out::println);
+
+    // 根据 map 中的条件查询
+    Map map = new HashMap();
+    // map 的键使用数据库的字段名，不是类中的属性名
+    map.put("name", "Franklin");
+    map.put("age", "21");
+    List usersList = userMapper.selectByMap(map);
+    usersList.forEach(System.out::println);
+}
+```
+
+
+
+#### 3. Update
+
+```java
+@Test
+public void testUpdate() {
+    User user = userMapper.selectById(1L);
+    user.setAge(28);
+
+    // 更新 id 为 1的用户年龄为 28
+    int row = userMapper.updateById(user);
+    System.out.println("影响的行数： " + row);
+}
+```
+
+
+
+#### 4. Delete
+
+```java
+@Test
+public void testDelete() {
+    // 删除 id 为5的用户
+    int row = userMapper.deleteById(5);
+    System.out.println("影响的行数： " + row);
+}
+```
+
+
+
