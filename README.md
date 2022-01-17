@@ -609,3 +609,220 @@ private Integer deleted;
 
 
 
+## 插件
+
+
+
+### 一、分页插件
+
+#### 1. 添加配置类
+
+```java
+package com.frankeleyn.config;
+
+import com.baomidou.mybatisplus.annotation.DbType;
+import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
+import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * @author Frankeleyn
+ * @date 2022/1/17 15:22
+ */
+@Configuration
+public class MybatisPlusConfig {
+
+    @Bean
+    public MybatisPlusInterceptor mybatisPlusInterceptor() {
+        MybatisPlusInterceptor interceptor = new MybatisPlusInterceptor();
+        // 将分页插件放入容器
+        interceptor.addInnerInterceptor(new PaginationInnerInterceptor(DbType.MYSQL));
+        return interceptor;
+    }
+}
+```
+
+
+
+#### 2. 测试分页
+
+新建一个测试类 **InterceptorTest**
+
+```java
+@SpringBootTest
+public class InterceptorTest {
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Test
+    public void testFindByPage() {
+        Page<User> page = new Page<>();
+        page.setCurrent(2); // 当前页数
+        page.setSize(3); // 每页条数
+
+        Page<User> userPage = userMapper.selectPage(page, null);
+
+        long total = userPage.getTotal(); // 总记录数
+        System.out.println("总记录数： " + total);
+        List<User> records = userPage.getRecords();
+        records.forEach(System.out::println);
+    }
+
+}
+```
+
+
+
+### 二、自定义分页
+
+
+
+#### 1. 定义接口方法
+
+```java
+public interface UserMapper extends BaseMapper<User> {
+    IPage<User> findUserPageByName(IPage<User> page, @Param("name") String name);
+}
+```
+
+
+
+#### 2. 定义 XML
+
+```xml
+<select id="findUserPageByName" resultType="com.frankeleyn.entity.User">
+    SELECT * FROM user
+    WHERE name like "%"#{name}"%"
+</select>
+```
+
+
+
+#### 3. 测试
+
+```java
+@Test
+public void testDivPage() {
+    Page<User> page = new Page<>();
+    page.setCurrent(2); // 当前页数
+    page.setSize(2); // 每页条数
+
+    IPage<User> pages = userMapper.findUserPageByName(page, "Obama");
+    pages.getRecords().forEach(System.out::println);
+}
+```
+
+
+
+#### 提别提醒
+
+如果你用了自定义方法，**@TableLogic** 就不生效了，需要自己手动加你的逻辑删除语句。
+
+
+
+### 三、乐观锁
+
+
+
+#### 1. 场景
+
+一件商品，成本价是80元，售价是100元。老板先是通知小李，说你去把商品价格增加50元。小李正在玩游戏，耽搁了一个小时。正好一个小时后，老板觉得商品价格增加到150元，价格太高，可能会影响销量。又通知小王，你把商品价格降低30元。
+
+此时，小李和小王同时操作商品后台系统。小李操作的时候，系统先取出商品价格100元；小王也在操作，取出的商品价格也是100元。小李将价格加了50元，并将100+50=150元存入了数据库；小王将商品减了30元，并将100-30=70元存入了数据库。是的，如果没有锁，小李的操作就完全被小王的覆盖了。
+
+- 创建商品表
+
+```java
+CREATE TABLE product
+(
+    id BIGINT(20) NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    name VARCHAR(30) NULL DEFAULT NULL COMMENT '商品名称',
+    price INT(11) DEFAULT 0 COMMENT '价格',
+    version INT(11) DEFAULT 0 COMMENT '乐观锁版本号',
+    PRIMARY KEY (id)
+);
+
+INSERT INTO product (id, NAME, price) VALUES (1, '笔记本', 100);
+```
+
+- 创建实体类
+
+  ```java
+  @Data
+  public class Product {
+  
+      private Long id;
+  
+      private String name;
+  
+      private Integer price;
+  
+      private Integer version;
+  }
+  ```
+
+- 创建 Mapper
+
+  ```java
+  public interface ProductMapper extends BaseMapper<Product> {
+      
+  }
+  ```
+
+- 测试
+
+  ```java
+  @Test
+  public void testLocal() {
+      // 小李
+      Product li = productMapper.selectById(1L);
+      // 小王
+      Product wang = productMapper.selectById(1L);
+  
+      // 小李将价格提高50元存入数据库
+      li.setPrice(li.getPrice() + 50);
+      productMapper.updateById(li);
+  
+      // 小王将价格降低30元存入数据库
+      wang.setPrice(wang.getPrice() - 30);
+      productMapper.updateById(wang);
+  
+      // 查询结果
+      Product product = productMapper.selectById(1L);
+      System.out.println("最后的结果：" + product.getPrice()); // 最后的结果：70
+  
+  }
+  ```
+
+
+
+等于 70 是肯定不行的，老板要的售价是 120。
+
+
+
+#### 2. Mybati-Plus 中的乐观锁实现
+
+##### ① 修改实体类
+
+给实体类加上 **@Version** 注解
+
+```java
+@Version
+private Integer version;
+```
+
+##### ② 添加乐观锁插件
+
+在 **MybatisPlusConfig** 加入下面这句代码：
+
+```java
+// 添加乐观锁插件
+interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());
+```
+
+##### ③ 重新执行测试代码
+
+
+
