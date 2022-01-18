@@ -824,5 +824,335 @@ interceptor.addInnerInterceptor(new OptimisticLockerInnerInterceptor());
 
 ##### ③ 重新执行测试代码
 
+小王执行会失败，因为 **version** 已经被小李修改了。
 
+##### ④ 优化流程
+
+让小王失败后重试
+
+```java
+    @Test
+    public void testLocal() {
+        // 小李
+        Product li = productMapper.selectById(1L);
+        // 小王
+        Product wang = productMapper.selectById(1L);
+
+        // 小李将价格提高50元存入数据库
+        li.setPrice(li.getPrice() + 50);
+        productMapper.updateById(li);
+
+        // 小王将价格降低30元存入数据库
+        wang.setPrice(wang.getPrice() - 30);
+        int row = productMapper.updateById(wang);
+
+        while (row == 0) {
+            // 小王执行失败，等待 1 秒后，重新执行
+            try {
+                Thread.sleep(1_000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            Product wang2 = productMapper.selectById(1L);
+            wang2.setPrice(wang2.getPrice() - 30);
+            row = productMapper.updateById(wang2);
+        }
+
+        // 查询结果
+        Product product = productMapper.selectById(1L);
+        System.out.println("最后的结果：" + product.getPrice()); // 最后的结果：120
+
+    }
+```
+
+
+
+
+
+## 条件构造器
+
+
+
+### 一、Wrapper 介绍
+
+**Mybatis-Plus** 提供条件构造器来执行较复杂的查询，条件构造器其实就是 **where** 语句的封装。
+
+
+
+#### 1. Wrapper 家族
+
+ ![Wrapper家族](./img/5-1-1.png)
+
+
+
+Wrapper ： 条件构造抽象类，最顶端父类  
+
+  AbstractWrapper ： 用于查询条件封装，生成 sql 的 where 条件
+
+​    QueryWrapper ： 查询条件封装
+
+​    UpdateWrapper ： Update 条件封装
+
+  AbstractLambdaWrapper ： 使用Lambda 语法
+
+​    LambdaQueryWrapper ：用于Lambda语法使用的查询Wrapper
+
+​    LambdaUpdateWrapper ： Lambda 更新封装Wrapper
+
+
+
+#### 2. 创建测试类
+
+```java
+@SpringBootTest
+public class WrapperTest {
+
+    @Autowired
+    private UserMapper userMapper;
+}
+```
+
+
+
+### 二、QueryWrapper
+
+#### 1. 查询条件
+
+查询名字中包含 n，年龄大于等于20且小于等于30，email 不为空的用户
+
+```java
+@Test
+public void testWrapper01() {
+    QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+    queryWrapper
+        .like("name","n")
+        .between("age", 20, 30)
+        .isNotNull("email");
+    List<User> users = userMapper.selectList(queryWrapper);
+    users.forEach(System.out::println);
+}
+```
+
+
+
+#### 2. 排序条件
+
+按年龄降序查询用户，如果年龄相同则按id升序排列
+
+```java
+@Test
+public void testWrapper02() {
+    QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+    queryWrapper
+        .orderByDesc("age")
+        .orderByAsc("id");
+    List<User> userList = userMapper.selectList(queryWrapper);
+    userList.forEach(System.out::println);
+}
+```
+
+
+
+#### 3. 删除条件
+
+删除 email 为空的所有用户，注意因为前面加了 **@TableLogic**，所以是逻辑删除，不是真的删了那条数据。
+
+```java
+@Test
+public void testWrapper03() {
+    QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+    queryWrapper.isNull("email");
+
+    int row = userMapper.delete(queryWrapper);
+    System.out.println("删除 " + row + " 条数据");
+}
+```
+
+
+
+#### 4. 条件的优先级
+
+查询名字中包含n，且（年龄小于18或email为空的用户），并将这些用户的年龄设置为18，邮箱设置为 **user@github.com**
+
+```java
+@Test
+public void testWrapper04() {
+    QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+    queryWrapper.like("name", "n")
+        .and(i -> i.lt("age", 18).or().isNull("email"));
+
+    User user = new User();
+    user.setAge(18);
+    user.setEmail("user@github.com");
+
+    int row = userMapper.update(user, queryWrapper);
+    System.out.println(row + " 行被修改");
+}
+```
+
+
+
+#### 5. select子句
+
+查询所有用户的用户名和年龄
+
+```java
+@Test
+public void testWrapper05() {
+    QueryWrapper<User>  queryWrapper = new QueryWrapper<>();
+    queryWrapper.select("name", "age");
+
+    List<Map<String, Object>> maps = userMapper.selectMaps(queryWrapper);
+    maps.forEach(System.out::println);
+}
+```
+
+
+
+#### 6. 子查询
+
+查询id不大于3的所有用户的id列表
+
+```java
+@Test
+public void testWrapper06() {
+    QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+    queryWrapper.inSql("id", "select id from user where id < 3");
+
+    List<Object> objects = userMapper.selectObjs(queryWrapper);
+    objects.forEach(System.out::println);
+}
+```
+
+上面这个写法容易 sql 注入，可以用别的方式替换
+
+```java
+queryWrapper.lt("id", 3);
+// 或者
+queryWrapper.in("id", 1,2,3);
+```
+
+
+
+### 三、UpdateWrapper
+
+#### 7. 条件优先级
+
+查询名字中包含n，且（年龄小于18或email为空的用户），并将这些用户的年龄设置为18，邮箱设置为 **user@github.com**
+
+```java
+@Test
+public void testWrapper07() {
+    UpdateWrapper<User> updateWrapper = new UpdateWrapper<>();
+    updateWrapper.set("age", 18)
+        .set("email", "user@github.com")
+        .like("name", "n")
+        .and(i -> i.lt("age", 18).or().isNull("email"));
+
+    //这里必须要创建User对象，否则无法应用自动填充。如果没有自动填充，可以设置为null
+    User user = new User();
+    int row = userMapper.update(user, updateWrapper);
+    System.out.println(row + " 行被修改");
+}
+```
+
+
+
+### 四、Condition
+
+#### 8. 动态组装查询条件
+
+查询名字中包含 n，年龄大于20且小于30的用户，查询条件来源于用户输入，是可选的
+
+```java
+@Test
+public void testWrapper08() {
+    //定义查询条件，有可能为null（用户未输入）
+    String name = null;
+    Integer ageBegin = 20;
+    Integer ageEnd = 30;
+
+    QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+    if(StringUtils.isNotBlank(name)){
+        queryWrapper.like("name","n");
+    }
+    if(ageBegin != null){
+        queryWrapper.ge("age", ageBegin);
+    }
+    if(ageEnd != null){
+        queryWrapper.le("age", ageEnd);
+    }
+
+    List<User> users = userMapper.selectList(queryWrapper);
+    users.forEach(System.out::println);
+}
+```
+
+上面这个写法没有问题，就是代码比较复杂，我们可以使用带 condition 参数的条件方法，简化代码：
+
+```java
+    @Test
+    public void testWrapper08() {
+        //定义查询条件，有可能为null（用户未输入）
+        String name = null;
+        Integer ageBegin = 20;
+        Integer ageEnd = 30;
+
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        queryWrapper.like(StringUtils.isNotBlank(name), "name", name)
+                    .gt(ageBegin != null, "age", ageBegin)
+                    .lt(ageEnd != null, "age", ageEnd);
+        
+        List<User> users = userMapper.selectList(queryWrapper);
+        users.forEach(System.out::println);
+    }
+```
+
+
+
+### 五、LambaWrapper
+
+#### 9. Query-组装查询条件
+
+查询名字中包含 n，年龄大于20且小于30的用户，查询条件来源于用户输入，是可选的
+
+```java
+@Test
+public void testWrapper09() {
+    //定义查询条件，有可能为null（用户未输入）
+    String name = null;
+    Integer ageBegin = 20;
+    Integer ageEnd = 30;
+
+    LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
+    queryWrapper.like(StringUtils.isNotBlank(name), User::getName, "n")
+        .gt(ageBegin != null, User::getAge, ageBegin)
+        .lt(ageEnd != null, User::getAge, ageEnd);
+
+    List<User> users = userMapper.selectList(queryWrapper);
+    users.forEach(System.out::println);
+}
+```
+
+
+
+#### 10. Update-条件更新
+
+查询名字中包含n，且（年龄小于20或email为空的用户），并将这些用户的年龄设置为18，邮箱设置为 **user@github.com**
+
+```java
+@Test
+public void testWrapper10() {
+    LambdaUpdateWrapper<User> updateWrapper = new LambdaUpdateWrapper<>();
+    updateWrapper
+        .set(User::getAge, 20)
+        .set(User::getEmail, "user@atguigu.com")
+        .like(User::getName, "n")
+        .and(i -> i.lt(User::getAge, 20).or().isNull(User::getEmail));
+
+    int row = userMapper.update(new User(), updateWrapper);
+    System.out.println(row + " 行被修改");
+}
+```
 
